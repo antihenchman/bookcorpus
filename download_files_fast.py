@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse
-import time
-
 
 import epub2txt
 import os
@@ -10,7 +7,13 @@ from progressbar import ProgressBar
 from glob import glob
 import sys
 import json
+import queue
+import signal
+import argparse
+import time
 
+global is_sigint_up
+is_sigint_up = False
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--out-dir', '--out', type=str, required=True)
@@ -18,17 +21,11 @@ parser.add_argument('--list-path', '--list', type=str, required=True)
 parser.add_argument('--trash-bad-count', action='store_true', default=False)
 args = parser.parse_args()
 
-import signal
-
-global is_sigint_up
-is_sigint_up = False
-
 def handler(signal_num,frame):
     print("\nYou Pressed Ctrl+C.")
     is_sigint_up = True
 
 signal.signal(signal.SIGINT, handler)
-
 
 def write_txt(txt, out_path, num_words=None):
     # occasionally, some epubs text are decoded with errors
@@ -111,12 +108,12 @@ class DownloadThread (threading.Thread):
             except:
                 pass
 
-
 def main():
     dataset = []
     filelist_path = args.list_path
 
     out_dir = args.out_dir
+
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     lines = list(open(filelist_path).readlines())
@@ -126,13 +123,15 @@ def main():
     sys.stderr.write('{} files already had been saved in {}.\n'.format(
         len(done_files), out_dir))
 
-    import queue
     queue = queue.Queue()
+
     for i, line in enumerate(ProgressBar()(lines)):
         queue.put(line)
     download_threads = []
+
     for _ in range(10):
         download_threads.append(DownloadThread(queue))
+
     print("start download....")
     for i in range(10):
         download_threads[i].start()
